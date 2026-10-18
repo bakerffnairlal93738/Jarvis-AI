@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">JARVIS</string>
+    <string name="jarvis_status_ready">SYSTEM READY</string>
+    <string name="jarvis_status_connecting">INITIALIZING LIVE LINK…</string>
+    <string name="jarvis_status_listening">LISTENING…</string>
+    <string name="jarvis_status_thinking">PROCESSING NEURAL CORE…</string>
+    <string name="jarvis_status_speaking">SPEAKING…</string>
+    <string name="jarvis_status_interrupted">INTERRUPTED</string>
+    <string name="jarvis_status_disconnected">DISCONNECTED</string>
+    <string name="jarvis_status_reconnecting">RECONNECTING…</string>
+    <string name="jarvis_status_error">SYSTEM ERROR</string>
+    <string name="permission_microphone_rationale">JARVIS requires audio recording permission to listen to your voice and process live commands.</string>
+</resources>
