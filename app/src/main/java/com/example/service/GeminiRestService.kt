@@ -290,6 +290,124 @@ class GeminiRestService(
             lower.contains("today's date") || lower.contains("what is today's date") || lower.contains("tell me the date") || lower.contains("आज क्या तारीख") || lower.contains("आज की तारीख") -> {
                 toolManager.executeTool("get_current_date", emptyMap(), language)
             }
+            // Video Scrolling Voice Commands
+            lower.contains("scroll the video") || lower.contains("scroll video") ||
+            lower.contains("स्क्रॉल द वीडियो") || lower.contains("स्क्रॉल वीडियो") ||
+            lower.contains("वीडियो स्क्रॉल") || lower.contains("اگلی ویڈیو") ||
+            lower.contains("next video") || lower.contains("ویڈیو اسکرول") ||
+            lower.contains("ویڈیو سکرول") || lower.contains("سکرول دی ویڈیو") ||
+            lower.contains("اسکرول دی ویڈیو") || lower.contains("سکڑول دی ویڈیو") ||
+            lower.contains("اگلا ویڈیو") || lower.contains("अगली वीडियो") ||
+            lower.contains("अगला वीडियो") || lower.contains("रील स्क्रॉल") ||
+            lower.contains("शॉर्ट्स स्क्रॉल") -> {
+                toolManager.executeTool("scroll_video", mapOf("direction" to "down"), language)
+            }
+
+            lower.contains("previous video") || lower.contains("पिछला वीडियो") ||
+            lower.contains("پچھلی ویڈیو") || lower.contains("scroll up video") ||
+            lower.contains("स्क्रॉल अप") || lower.contains("اوپر اسکرول") ||
+            lower.contains("اوپر سکرول") -> {
+                toolManager.executeTool("scroll_video", mapOf("direction" to "up"), language)
+            }
+
+            // Send / Share Video Voice Commands
+            lower.contains("سینڈ کر دو") || lower.contains("سینڈ کرو") ||
+            lower.contains("سینڈ کر دے") || lower.contains("سیند کر دو") ||
+            lower.contains("send this video") || lower.contains("send video") ||
+            lower.contains("share video") || lower.contains("شیئر کرو") ||
+            lower.contains("شیئر کر دو") || lower.contains("ویڈیو شیئر") ||
+            lower.contains("ویڈیو بھیجو") || lower.contains("ویڈیو بھیج دو") ||
+            lower.contains("सेंड कर दो") || lower.contains("सेंड करो") ||
+            lower.contains("वीडियो भेजो") || lower.contains("वीडियो सेंड") ||
+            (lower.contains("ویڈیو") && (lower.contains("بھیج") || lower.contains("سینڈ"))) ||
+            (lower.contains("वीडियो") && (lower.contains("भेज") || lower.contains("सेंड"))) -> {
+                val recipient = when {
+                    lower.contains("whatsapp") || lower.contains("व्हाट्सएप") || lower.contains("واٹس") -> "whatsapp"
+                    else -> ""
+                }
+                toolManager.executeTool("send_video", mapOf("recipient" to recipient), language)
+            }
+
+            // Call Contact Voice Commands
+            lower.contains("کانٹیکٹ میں سے کال") || lower.contains("کانٹیکٹ سے کال") ||
+            lower.contains("کانٹیکٹ میں سے") || lower.contains("کانٹیکٹ سے") ||
+            lower.contains("कांटेक्ट में से कॉल") || lower.contains("कांटेक्ट से कॉल") ||
+            lower.contains("कॉल लगाओ") || lower.contains("कॉल करो") ||
+            lower.contains("फोन मिलाओ") || lower.contains("فون ملاؤ") ||
+            lower.contains("کال ملاؤ") || lower.contains("کال کرو") ||
+            lower.contains("کال لگاؤ") || lower.contains("کال لگا دے") ||
+            lower.startsWith("call ") || lower.contains("make a call to ") -> {
+                val name = when {
+                    lower.startsWith("call ") -> prompt.substringAfter("call ").trim()
+                    lower.contains("make a call to ") -> prompt.substringAfter("make a call to ").trim()
+                    lower.contains("کانٹیکٹ میں سے") || lower.contains("کانٹیکٹ سے") -> {
+                        prompt.replaceFirst("(?i)کانٹیکٹ( میں)? سے ".toRegex(), "")
+                            .replaceFirst("(?i)(کو)?\\s*(کال لگاؤ|کال لگا دے|کال کرو|فون ملاؤ|کال ملاؤ)".toRegex(), "")
+                            .trim()
+                    }
+                    lower.contains("कांटेक्ट में से") || lower.contains("कांटेक्ट से") -> {
+                        prompt.replaceFirst("(?i)कांटेक्ट( में)? से ".toRegex(), "")
+                            .replaceFirst("(?i)(को)?\\s*(कॉल लगाओ|कॉल करो|फोन मिलाओ)".toRegex(), "")
+                            .trim()
+                    }
+                    lower.contains("کال لگاؤ") -> prompt.replaceFirst("(?i)(کو)?\\s*کال لگاؤ".toRegex(), "").trim()
+                    lower.contains("کال لگا دے") -> prompt.replaceFirst("(?i)(کو)?\\s*کال لگا دے".toRegex(), "").trim()
+                    lower.contains("کال ملاؤ") -> prompt.replaceFirst("(?i)(کو)?\\s*کال ملاؤ".toRegex(), "").trim()
+                    lower.contains("کال کرو") -> prompt.replaceFirst("(?i)(کو)?\\s*کال کرو".toRegex(), "").trim()
+                    lower.contains("कॉल लगाओ") -> prompt.replaceFirst("(?i)(को)?\\s*कॉल लगाओ".toRegex(), "").trim()
+                    lower.contains("कॉल करो") -> prompt.replaceFirst("(?i)(को)?\\s*कॉल करो".toRegex(), "").trim()
+                    lower.contains("फोन मिलाओ") -> prompt.replaceFirst("(?i)(को)?\\s*फोन मिलाओ".toRegex(), "").trim()
+                    else -> ""
+                }
+                toolManager.executeTool("call_contact", mapOf("name" to name), language)
+            }
+
+            // Search in App Voice Commands (YouTube, Play Store, etc.)
+            (lower.contains("यूट्यूब") || lower.contains("یوٹیوب") || lower.contains("youtube")) &&
+            (lower.contains("सर्च") || lower.contains("खोजो") || lower.contains("تلاش") || lower.contains("search") || lower.contains("سرچ")) -> {
+                val q = prompt.replaceFirst("(?i)(यूट्यूब पर|یوٹیوب پر|on youtube|youtube per)\\s*".toRegex(), "")
+                    .replaceFirst("(?i)(سर्च करो|سर्च|खोजो|search for|search|تلاش کرو|سرچ کرو|سرچ)\\s*".toRegex(), "")
+                    .replaceFirst("(?i)(سर्च करो|سर्च|खोजो|تلاش کرو|سرچ کرو|سرچ)\\s*".toRegex(), "")
+                    .trim()
+                toolManager.executeTool("search_in_app", mapOf("app_name" to "youtube", "query" to q), language)
+            }
+
+            // General search in named app: e.g. "[App] پر [Query] سرچ کرو" or "[App] पर [Query] सर्च करो"
+            lower.contains(" پر ") && (lower.contains("سرچ کرو") || lower.contains("تلاش کرو") || lower.contains("سرچ") || lower.contains("سर्च करो") || lower.contains("सर्च")) -> {
+                val parts = prompt.split(" پر ")
+                val appPart = parts.getOrNull(0)?.trim() ?: ""
+                val rest = parts.getOrNull(1)?.replaceFirst("(?i)(سرچ کرو|تلاش کرو|سرچ|سर्च करो|सर्च|खोजो)".toRegex(), "")?.trim() ?: ""
+                toolManager.executeTool("search_in_app", mapOf("app_name" to appPart, "query" to rest), language)
+            }
+
+            lower.contains(" पर ") && (lower.contains("सर्च करो") || lower.contains("खोजो") || lower.contains("सर्च")) -> {
+                val parts = prompt.split(" पर ")
+                val appPart = parts.getOrNull(0)?.trim() ?: ""
+                val rest = parts.getOrNull(1)?.replaceFirst("(?i)(सर्च करो|सर्च|खोजो)".toRegex(), "")?.trim() ?: ""
+                toolManager.executeTool("search_in_app", mapOf("app_name" to appPart, "query" to rest), language)
+            }
+
+            // Open Video & Reels Hub
+            lower.contains("video hub") || lower.contains("ویڈیو ہب") || lower.contains("वीडियो हब") || lower.contains("ریلس ہب") || lower.contains("रील्स हب") -> {
+                toolManager.executeTool("open_video_hub", emptyMap(), language)
+            }
+
+            // Open ANY app by name (e.g. "WhatsApp کھولو", "یہ والی ایپ اوپن کر دے", "Open Instagram", "Camera चलाओ")
+            lower.startsWith("open ") -> {
+                val appName = prompt.substringAfter("open ").trim()
+                toolManager.executeTool("open_any_app", mapOf("app_name" to appName), language)
+            }
+            lower.contains("اوپن کر دے") || lower.contains("اوپن کر دو") || lower.contains("اوپن کرو") -> {
+                val appName = prompt.replaceFirst("(?i)(یہ والی ایپ|یہ ایپ|کوئی بھی ایپ|اوپن کر دے|اوپن کر دو|اوپن کرو|app open kar de|open kar do|open kar de)\\s*".toRegex(), "")
+                    .replaceFirst("(?i)(اوپن کر دے|اوپن کر دو|اوپن کرو)$".toRegex(), "")
+                    .trim()
+                toolManager.executeTool("open_any_app", mapOf("app_name" to appName), language)
+            }
+            lower.endsWith(" खोलो") || lower.endsWith(" खोल दो") || lower.endsWith(" चलाओ") || lower.endsWith(" ओपन करो") || lower.endsWith(" کھولو") || lower.endsWith(" کھول دو") -> {
+                val appName = prompt.replaceFirst("(?i)\\s*(खोलो|खोल दो|चलाओ|ओपन करो|کھولو|کھول دو)$".toRegex(), "").trim()
+                toolManager.executeTool("open_any_app", mapOf("app_name" to appName), language)
+            }
+
             lower == "open youtube" || lower == "यूट्यूब खोलो" || lower == "यूट्यूब चलाओ" -> {
                 toolManager.executeTool("open_youtube", emptyMap(), language)
             }
@@ -522,6 +640,90 @@ class GeminiRestService(
         list.put(JSONObject().apply {
             put("name", "open_calendar")
             put("description", "Open calendar")
+        })
+        list.put(JSONObject().apply {
+            put("name", "open_any_app")
+            put("description", "Open any installed application or system tool by name (e.g. WhatsApp, Camera, YouTube, Instagram, Chrome, Maps, Settings, etc.)")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("app_name", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Name of the app to launch (e.g. WhatsApp, YouTube, Instagram, Camera, Maps)")
+                    })
+                })
+                put("required", JSONArray().apply { put("app_name") })
+            })
+        })
+        list.put(JSONObject().apply {
+            put("name", "search_in_app")
+            put("description", "Search for videos or queries inside a specific app (such as YouTube, Google, Play Store, Maps)")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("app_name", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "App to search inside (e.g. YouTube, Google, Play Store, Maps)")
+                    })
+                    put("query", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Search query or video topic to search for")
+                    })
+                })
+                put("required", JSONArray().apply { put("query") })
+            })
+        })
+        list.put(JSONObject().apply {
+            put("name", "scroll_video")
+            put("description", "Scroll to next or previous video in video feeds, reels, shorts, or in-app video hub")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("direction", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "'down' for next video, 'up' for previous video")
+                    })
+                })
+            })
+        })
+        list.put(JSONObject().apply {
+            put("name", "send_video")
+            put("description", "Send or share the current video to someone via WhatsApp or system share")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("recipient", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Recipient name or 'whatsapp'")
+                    })
+                    put("video_title", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Title of the video being shared")
+                    })
+                    put("video_url", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "URL of the video")
+                    })
+                })
+            })
+        })
+        list.put(JSONObject().apply {
+            put("name", "call_contact")
+            put("description", "Call someone from phone contacts by person name or contact name")
+            put("parameters", JSONObject().apply {
+                put("type", "OBJECT")
+                put("properties", JSONObject().apply {
+                    put("name", JSONObject().apply {
+                        put("type", "STRING")
+                        put("description", "Contact name to call (e.g. Rahul, Papa, Mom, Amit)")
+                    })
+                })
+                put("required", JSONArray().apply { put("name") })
+            })
+        })
+        list.put(JSONObject().apply {
+            put("name", "open_video_hub")
+            put("description", "Open the in-app video and reels hub for viewing and voice-controlled scrolling")
         })
         return list
     }

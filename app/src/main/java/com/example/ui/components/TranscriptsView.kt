@@ -72,36 +72,8 @@ fun TranscriptsView(
 
     if (messages.isEmpty() && liveUserSpeech.isBlank()) {
         Box(
-            modifier = modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Psychology,
-                    contentDescription = null,
-                    tint = JarvisCyanDim.copy(alpha = 0.6f),
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "NEURAL LINK STANDBY",
-                    color = JarvisCyanDim,
-                    style = MaterialTheme.typography.labelMedium,
-                    letterSpacing = 2.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Tap the reactor or say \"Hello Jarvis\" to speak.",
-                    color = JarvisTextDim,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
+            modifier = modifier.fillMaxWidth()
+        )
     } else {
         LazyColumn(
             state = listState,

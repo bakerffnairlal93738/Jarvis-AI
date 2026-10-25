@@ -24,7 +24,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Feedback
@@ -122,6 +124,8 @@ fun FeedbackSheet(
         "💡 Please add more voice commands (مزید وائس کمانڈز شامل کریں)"
     )
 
+    BackHandler { onDismiss() }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -139,17 +143,18 @@ fun FeedbackSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
+                    IconButton(
+                        onClick = onDismiss,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
                             .background(JarvisCyan.copy(alpha = 0.15f))
-                            .border(1.dp, JarvisCyan.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
+                            .border(1.dp, JarvisCyan.copy(alpha = 0.45f), CircleShape)
+                            .testTag("feedback_back_button")
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Feedback,
-                            contentDescription = null,
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back / वापस",
                             tint = JarvisCyan,
                             modifier = Modifier.size(20.dp)
                         )
@@ -159,7 +164,7 @@ fun FeedbackSheet(
                         Text(
                             text = "USER FEEDBACK & RATING",
                             color = JarvisCyan,
-                            fontSize = 15.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 1.sp

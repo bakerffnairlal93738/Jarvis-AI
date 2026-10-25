@@ -10,4 +10,7 @@
     <string name="jarvis_status_reconnecting">RECONNECTING…</string>
     <string name="jarvis_status_error">SYSTEM ERROR</string>
     <string name="permission_microphone_rationale">JARVIS requires audio recording permission to listen to your voice and process live commands.</string>
+    <string name="accessibility_service_desc">Enables JARVIS voice-controlled gestures such as scrolling videos in YouTube Shorts, Instagram Reels, and other apps.</string>
+    <string name="permission_contacts_rationale">JARVIS requires contacts permission to look up and call people from your contact list by voice command.</string>
+    <string name="permission_phone_rationale">JARVIS requires phone call permission to place voice calls directly to your contacts.</string>
 </resources>

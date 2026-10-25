@@ -56,6 +56,7 @@ class AudioPlayer(
         }
     private var speechRate: Float = 1.0f
     private var speechPitch: Float = 1.05f
+    private var speechVolume: Float = 1.0f
 
     init {
         initTts()
@@ -65,6 +66,8 @@ class AudioPlayer(
         tts = TextToSpeech(context.applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 isTtsInitialized = true
+                tts?.setSpeechRate(speechRate)
+                tts?.setPitch(speechPitch)
                 applyTtsLanguage(currentLanguageCode)
                 setupTtsListener()
             } else {
@@ -113,6 +116,23 @@ class AudioPlayer(
         speechPitch = pitch.coerceIn(0.5f, 2.0f)
         tts?.setPitch(speechPitch)
     }
+
+    fun setSpeechVolume(volume: Float) {
+        speechVolume = volume.coerceIn(0.05f, 1.0f)
+        try {
+            audioTrack?.setVolume(speechVolume)
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            audioManager?.let { am ->
+                val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                val targetVol = (maxVol * speechVolume).toInt().coerceIn(1, maxVol)
+                am.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "AudioPlayer setSpeechVolume error: ${e.message}")
+        }
+    }
+
+    fun getSpeechVolume(): Float = speechVolume
 
     /**
      * Plays a pleasant, futuristic two-tone sci-fi wake-word chime (880Hz -> 1320Hz).
@@ -310,6 +330,11 @@ class AudioPlayer(
         }
 
         track.play()
+        try {
+            track.setVolume(speechVolume)
+        } catch (e: Exception) {
+            Log.w(tag, "AudioTrack initial setVolume error: ${e.message}")
+        }
         audioTrack = track
         return track
     }
@@ -382,7 +407,7 @@ class AudioPlayer(
 
         if (isTtsInitialized) {
             val params = android.os.Bundle()
-            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
+            params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, speechVolume)
             val utteranceId = "JARVIS_${System.currentTimeMillis()}"
 
             // Start simulated amplitude waveform during TTS speaking

@@ -22,8 +22,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Launch
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.PlayArrow
@@ -36,6 +39,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -79,8 +84,11 @@ fun TermuxSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     var showScriptCode by remember { mutableStateOf(false) }
+    var customPromptInput by remember { mutableStateOf("") }
 
     val isUrdu = selectedLanguage == "ur"
+
+    BackHandler { onDismiss() }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -100,12 +108,22 @@ fun TermuxSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Terminal,
-                        contentDescription = null,
-                        tint = if (termuxState.isRunning) JarvisStatusReady else JarvisCyan,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(JarvisCyan.copy(alpha = 0.15f))
+                            .border(1.dp, JarvisCyan.copy(alpha = 0.45f), CircleShape)
+                            .testTag("termux_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back / वापस",
+                            tint = JarvisCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
@@ -257,6 +275,85 @@ fun TermuxSheet(
                 }
             }
 
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Custom Website & App Builder (اپنی مرضی کی ویب سائٹ اور ایپ)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisCardBg)
+                    .border(1.dp, JarvisCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = JarvisCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isUrdu) "اپنی مرضی کی ویب سائٹ یا ایپ بنائیں" else "BUILD CUSTOM WEBSITE OR APP",
+                        color = JarvisCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = if (isUrdu)
+                        "جو بھی ویب سائٹ یا ایپ آپ بنوانا چاہتے ہیں، یہاں لکھیں اور ٹرمکس بیک گراؤنڈ میں خود تیار کر کے چلائے گا۔"
+                    else
+                        "Type any website or app you want to create. JARVIS will generate and run it in the background.",
+                    color = JarvisTextSecondary,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = customPromptInput,
+                    onValueChange = { customPromptInput = it },
+                    placeholder = {
+                        Text(
+                            if (isUrdu) "مثلاً: ایک خوبصورت ریسٹورنٹ مینو ویب سائٹ بناؤ" else "e.g. Build a luxury restaurant ordering website with dark UI",
+                            color = JarvisTextDim,
+                            fontSize = 12.sp
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag("custom_app_prompt_input"),
+                    singleLine = false,
+                    maxLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = JarvisCyan,
+                        unfocusedBorderColor = JarvisCardBorder,
+                        focusedTextColor = JarvisTextPrimary,
+                        unfocusedTextColor = JarvisTextPrimary
+                    )
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        val input = customPromptInput.trim()
+                        if (input.isNotBlank()) {
+                            onStartApp(input)
+                            customPromptInput = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = JarvisCyan,
+                        contentColor = JarvisObsidian
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.align(Alignment.End).testTag("generate_custom_app_button")
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isUrdu) "تیار کریں اور بیک گراؤنڈ میں چلائیں" else "Build & Run in Background", fontWeight = FontWeight.Bold)
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Quick App Presets to Launch
@@ -271,6 +368,10 @@ fun TermuxSheet(
 
             val presets = listOf(
                 "پورٹ فولیو ویب سائٹ" to "Portfolio Website (پورٹ فولیو)",
+                "ای کامرس اسٹور ویب سائٹ" to "E-Commerce Tech Store (دکان / ای کامرس)",
+                "جم اور فٹنس ٹریکر" to "Fitness & Gym Tracker (جم ایپ)",
+                "کرپٹو ریٹ ہب" to "Crypto & Asset Hub (کرپٹو ریٹ)",
+                "ریسٹورنٹ مینو ویب سائٹ" to "Restaurant & Food Menu (ریسٹورنٹ)",
                 "ٹوڈو ٹاسک ایپ" to "Task Manager (ٹوڈو ایپ)",
                 "سائنٹیفک کیلکولیٹر" to "Scientific Calculator (کیلکولیٹر)",
                 "موسم ویدر اسٹیشن" to "Weather Station (موسم)"

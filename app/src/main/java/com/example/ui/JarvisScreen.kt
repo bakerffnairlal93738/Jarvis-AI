@@ -2,10 +2,15 @@ package com.example.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,11 +24,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.app.Activity
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -34,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +75,7 @@ import com.example.ui.components.NotesRemindersSheet
 import com.example.ui.components.SettingsSheet
 import com.example.ui.components.TermuxSheet
 import com.example.ui.components.TranscriptsView
+import com.example.ui.components.VideoScrollSheet
 import com.example.ui.theme.JarvisCardBg
 import com.example.ui.theme.JarvisCardBorder
 import com.example.ui.theme.JarvisCrimson
@@ -110,6 +124,12 @@ fun JarvisScreen(
         }
     }
 
+    val phonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        viewModel.toggleMissedCallAlert(true)
+    }
+
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
@@ -121,6 +141,31 @@ fun JarvisScreen(
         uiState.feedbackSubmittedMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
             viewModel.clearFeedbackSubmittedMessage()
+        }
+    }
+
+    val activity = context as? Activity
+    val anySheetOpen = uiState.isSettingsOpen || uiState.isCommandsOpen || uiState.isNotesOpen || uiState.isTermuxSheetOpen || uiState.isFeedbackOpen || uiState.isVideoHubOpen
+
+    BackHandler(enabled = anySheetOpen) {
+        if (uiState.isSettingsOpen) viewModel.openSettings(false)
+        if (uiState.isCommandsOpen) viewModel.openCommands(false)
+        if (uiState.isNotesOpen) viewModel.openNotes(false)
+        if (uiState.isTermuxSheetOpen) viewModel.openTermuxSheet(false)
+        if (uiState.isFeedbackOpen) viewModel.openFeedback(false)
+        if (uiState.isVideoHubOpen) viewModel.openVideoHub(false)
+    }
+
+    val handleBackNavigation: () -> Unit = {
+        if (anySheetOpen) {
+            viewModel.openSettings(false)
+            viewModel.openCommands(false)
+            viewModel.openNotes(false)
+            viewModel.openTermuxSheet(false)
+            viewModel.openFeedback(false)
+            viewModel.openVideoHub(false)
+        } else {
+            activity?.moveTaskToBack(true)
         }
     }
 
@@ -136,20 +181,26 @@ fun JarvisScreen(
                 .background(JarvisObsidian),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top HUD Bar with Model Persona Badge (ChatGPT-6)
+            // Top HUD Bar with Back Button on Left and Settings on Right
             TopHudBar(
                 status = uiState.status,
                 voiceName = uiState.selectedVoice,
                 modelPersona = uiState.selectedModelPersona,
-                isTermuxRunning = uiState.termuxState.isRunning,
-                onOpenTermux = { viewModel.openTermuxSheet(true) },
-                onOpenNotes = { viewModel.openNotes(true) },
-                onOpenCommands = { viewModel.openCommands(true) },
-                onOpenFeedback = { viewModel.openFeedback(true) },
+                onBack = handleBackNavigation,
                 onOpenSettings = { viewModel.openSettings(true) }
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
+            // Quick Action Strip (Termux, Video Hub, Notes, Commands, Feedback)
+            QuickHudStrip(
+                isTermuxRunning = uiState.termuxState.isRunning,
+                onOpenTermux = { viewModel.openTermuxSheet(true) },
+                onOpenVideoHub = { viewModel.openVideoHub(true) },
+                onOpenNotes = { viewModel.openNotes(true) },
+                onOpenCommands = { viewModel.openCommands(true) },
+                onOpenFeedback = { viewModel.openFeedback(true) }
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
 
             // Upper Center: Arc Reactor & Real-Time Waveform
             Column(
@@ -279,8 +330,14 @@ fun JarvisScreen(
                 selectedLanguage = uiState.selectedLanguage,
                 selectedModelPersona = uiState.selectedModelPersona,
                 isVoiceOutputEnabled = uiState.isVoiceOutputEnabled,
+                speechVolume = uiState.speechVolume,
                 speechRate = uiState.speechRate,
                 speechPitch = uiState.speechPitch,
+                isNoiseSuppressionEnabled = uiState.isNoiseSuppressionEnabled,
+                noiseSuppressionLevel = uiState.noiseSuppressionLevel,
+                selectedAiModel = uiState.selectedAiModel,
+                isRunInBackgroundEnabled = uiState.isRunInBackgroundEnabled,
+                isMissedCallAlertEnabled = uiState.isMissedCallAlertEnabled,
                 isContinuousListening = uiState.isContinuousListening,
                 bargeInSensitivity = uiState.bargeInSensitivity,
                 isWakeWordEnabled = uiState.isWakeWordEnabled,
@@ -290,18 +347,45 @@ fun JarvisScreen(
                 onVoiceGenderSelected = { g -> viewModel.setVoiceGender(g) },
                 onLanguageSelected = { l -> viewModel.setLanguage(l) },
                 onModelPersonaChanged = { p -> viewModel.setModelPersona(p) },
+                onAiModelSelected = { m -> viewModel.setSelectedAiModel(m) },
+                onRunInBackgroundToggled = { enabled -> viewModel.toggleRunInBackground(enabled) },
+                onMissedCallAlertToggled = { enabled ->
+                    if (enabled) {
+                        val permissionsToRequest = mutableListOf(Manifest.permission.READ_PHONE_STATE)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        val needsPermission = permissionsToRequest.any {
+                            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+                        }
+                        if (needsPermission) {
+                            phonePermissionLauncher.launch(permissionsToRequest.toTypedArray())
+                        } else {
+                            viewModel.toggleMissedCallAlert(true)
+                        }
+                    } else {
+                        viewModel.toggleMissedCallAlert(false)
+                    }
+                },
+                onTestMissedCall = { viewModel.testMissedCallAlert() },
+                onRequestBatteryOptimization = { viewModel.requestBatteryOptimization(context) },
                 onVoiceOutputToggled = { enabled -> viewModel.toggleVoiceOutput() },
+                onSpeechVolumeChanged = { vol -> viewModel.setSpeechVolume(vol) },
                 onSpeechRateChanged = { r -> viewModel.setSpeechRate(r) },
                 onSpeechPitchChanged = { p -> viewModel.setSpeechPitch(p) },
+                onNoiseSuppressionToggled = { enabled -> viewModel.toggleNoiseSuppression(enabled) },
+                onNoiseSuppressionLevelChanged = { lvl -> viewModel.setNoiseSuppressionLevel(lvl) },
                 onContinuousListeningToggled = { c -> viewModel.setContinuousListening(c) },
                 onBargeInSensitivityChanged = { s -> viewModel.setBargeInSensitivity(s) },
                 onWakeWordToggled = { enabled -> viewModel.toggleWakeWord(enabled) },
                 onWakeWordSensitivityChanged = { s -> viewModel.setWakeWordSensitivity(s) },
+                onClearConversationHistory = { viewModel.clearConversationHistory() },
                 onTestVoice = {
-                    val testMsg = if (uiState.selectedLanguage == "hi") {
-                        "नमस्ते! मैं जार्विस हूँ। वॉयस आउटपुट बिल्कुल ठीक काम कर रहा है।"
-                    } else {
-                        "Hello! JARVIS voice output is functioning smoothly."
+                    val testMsg = when (uiState.selectedLanguage) {
+                        "hi" -> "नमस्ते! मैं जार्विस हूँ। वॉयस आउटपुट और वॉल्यूम बिल्कुल ठीक काम कर रहा है।"
+                        "ur" -> "السلام علیکم! میں جاروس ہوں۔ آواز اور والیوم بہترین کام کر رہا ہے۔"
+                        "pa" -> "ست شری اکال! میں جاروس آں، آواز تے والیوم بالکل ٹھیک چل ریا اے۔"
+                        else -> "Hello! JARVIS voice output and volume are functioning smoothly."
                     }
                     viewModel.replayMessageSpeech(testMsg)
                 },
@@ -361,6 +445,29 @@ fun JarvisScreen(
             )
         }
 
+        if (uiState.isVideoHubOpen) {
+            VideoScrollSheet(
+                isOpen = true,
+                onDismiss = { viewModel.openVideoHub(false) },
+                scrollTrigger = uiState.activeVideoScrollTrigger,
+                scrollDirection = uiState.activeVideoDirection,
+                onScrollNext = { viewModel.scrollVideo("down") },
+                onScrollPrevious = { viewModel.scrollVideo("up") },
+                onSendVideo = { title, url, recipient ->
+                    viewModel.sendCurrentVideo(title, url, recipient)
+                },
+                onSearchYouTube = { query ->
+                    viewModel.searchInApp("youtube", query)
+                },
+                onCallContact = { name ->
+                    viewModel.callContact(name)
+                },
+                onOpenApp = { appName ->
+                    viewModel.openAnyApp(appName)
+                }
+            )
+        }
+
         // Permission Rationale Dialog
         if (showPermissionRationale) {
             AlertDialog(
@@ -415,120 +522,217 @@ fun TopHudBar(
     status: AssistantStatus,
     voiceName: String,
     modelPersona: String,
-    isTermuxRunning: Boolean = false,
-    onOpenTermux: () -> Unit = {},
-    onOpenNotes: () -> Unit,
-    onOpenCommands: () -> Unit,
-    onOpenFeedback: () -> Unit = {},
+    onBack: () -> Unit = {},
     onOpenSettings: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // App Title & Model Persona badge
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
+        // LEFT SIDE: Back Button + Jarvis Identity (App icon & title)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
+            IconButton(
+                onClick = onBack,
                 modifier = Modifier
-                    .size(9.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
-                    .background(JarvisCyan)
-            )
+                    .background(JarvisCyan.copy(alpha = 0.15f))
+                    .border(1.dp, JarvisCyan.copy(alpha = 0.45f), CircleShape)
+                    .testTag("top_back_button")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back / वापस",
+                    tint = JarvisCyan,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "JARVIS",
-                color = JarvisCyan,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Black,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(JarvisPurple.copy(alpha = 0.25f))
-                    .border(1.dp, JarvisPurple.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .border(1.5.dp, JarvisCyan.copy(alpha = 0.85f), CircleShape)
+                    .background(JarvisObsidian)
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.img_jarvis_logo),
+                    contentDescription = "JARVIS AI Logo",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "JARVIS",
+                        color = JarvisCyan,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.6.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when (status) {
+                                    AssistantStatus.LISTENING -> Color(0xFF00E676)
+                                    AssistantStatus.SPEAKING -> JarvisPurple
+                                    AssistantStatus.THINKING -> JarvisGold
+                                    AssistantStatus.ERROR -> JarvisCrimson
+                                    else -> JarvisCyan
+                                }
+                            )
+                    )
+                }
                 Text(
-                    text = "NEURAL CORE",
-                    color = JarvisPurple,
-                    fontSize = 10.sp,
+                    text = "A.I. SYSTEM • MARK VII",
+                    color = JarvisTextDim,
+                    fontSize = 8.5.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.8.sp
+                )
+            }
+        }
+
+        // RIGHT SIDE: Dedicated, High-Affordance Settings Button (Never blocked, easy to tap)
+        Surface(
+            onClick = onOpenSettings,
+            shape = RoundedCornerShape(12.dp),
+            color = JarvisCyan.copy(alpha = 0.15f),
+            border = BorderStroke(1.dp, JarvisCyan.copy(alpha = 0.6f)),
+            modifier = Modifier
+                .height(40.dp)
+                .testTag("top_settings_button")
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = JarvisCyan,
+                    modifier = Modifier.size(19.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "SETTINGS",
+                    color = JarvisCyan,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
                 )
             }
         }
+    }
+}
 
-        // Action Icons: Termux Studio, Notes, Commands, Feedback, Settings
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(
-                onClick = onOpenTermux,
-                modifier = Modifier.size(36.dp).testTag("top_termux_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Terminal,
-                    contentDescription = "Termux Python Studio",
-                    tint = if (isTermuxRunning) JarvisStatusReady else JarvisCyanDim,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
+@Composable
+fun QuickHudStrip(
+    isTermuxRunning: Boolean,
+    onOpenTermux: () -> Unit,
+    onOpenVideoHub: () -> Unit,
+    onOpenNotes: () -> Unit,
+    onOpenCommands: () -> Unit,
+    onOpenFeedback: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 14.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        QuickPillButton(
+            icon = Icons.Default.Terminal,
+            label = "Termux",
+            tint = if (isTermuxRunning) JarvisStatusReady else JarvisCyanDim,
+            testTag = "top_termux_button",
+            onClick = onOpenTermux
+        )
+        QuickPillButton(
+            icon = Icons.Default.SmartDisplay,
+            label = "Video Hub",
+            tint = JarvisCyan,
+            testTag = "top_video_hub_button",
+            onClick = onOpenVideoHub
+        )
+        QuickPillButton(
+            icon = Icons.Default.Bookmark,
+            label = "Notes",
+            tint = JarvisCyanDim,
+            testTag = "top_notes_button",
+            onClick = onOpenNotes
+        )
+        QuickPillButton(
+            icon = Icons.Default.Code,
+            label = "Commands",
+            tint = JarvisCyanDim,
+            testTag = "top_commands_button",
+            onClick = onOpenCommands
+        )
+        QuickPillButton(
+            icon = Icons.Default.Feedback,
+            label = "Feedback",
+            tint = JarvisPurple,
+            testTag = "top_feedback_button",
+            onClick = onOpenFeedback
+        )
+    }
+}
 
-            IconButton(
-                onClick = onOpenNotes,
-                modifier = Modifier.size(36.dp).testTag("top_notes_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Bookmark,
-                    contentDescription = "Notes and Reminders",
-                    tint = JarvisCyanDim,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            IconButton(
-                onClick = onOpenCommands,
-                modifier = Modifier.size(36.dp).testTag("top_commands_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Code,
-                    contentDescription = "Custom Voice Commands",
-                    tint = JarvisCyanDim,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            IconButton(
-                onClick = onOpenFeedback,
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(JarvisPurple.copy(alpha = 0.2f))
-                    .testTag("top_feedback_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Feedback,
-                    contentDescription = "Feedback & Rating",
-                    tint = JarvisPurple,
-                    modifier = Modifier.size(19.dp)
-                )
-            }
-
-            IconButton(
-                onClick = onOpenSettings,
-                modifier = Modifier.size(36.dp).testTag("top_settings_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    tint = JarvisCyanDim,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+@Composable
+private fun QuickPillButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: Color,
+    testTag: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        color = JarvisCardBg,
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.35f)),
+        modifier = Modifier
+            .height(32.dp)
+            .testTag(testTag)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = tint,
+                modifier = Modifier.size(15.dp)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = label,
+                color = JarvisTextSecondary,
+                fontSize = 10.5.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

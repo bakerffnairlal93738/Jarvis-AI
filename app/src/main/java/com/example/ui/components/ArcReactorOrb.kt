@@ -9,12 +9,16 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
@@ -25,19 +29,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.ui.AssistantStatus
 import com.example.ui.theme.JarvisCrimson
 import com.example.ui.theme.JarvisCyan
 import com.example.ui.theme.JarvisGold
+import com.example.ui.theme.JarvisObsidian
 import com.example.ui.theme.JarvisPurple
 import kotlin.math.cos
 import kotlin.math.sin
@@ -201,35 +210,78 @@ fun ArcReactorOrb(
                 style = Stroke(width = 3.dp.toPx())
             )
 
-            // 6. Solid Core Center
-            val solidCoreRadius = maxRadius * 0.32f * (1f + animatedAmp.value * 0.3f)
+            // 6. Subtle inner core glow
+            val solidCoreRadius = maxRadius * 0.36f * (1f + animatedAmp.value * 0.2f)
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color.White,
-                        primaryColor,
-                        primaryColor.copy(alpha = 0.8f)
+                        primaryColor.copy(alpha = 0.45f),
+                        primaryColor.copy(alpha = 0.15f),
+                        Color.Transparent
                     ),
                     center = center,
-                    radius = solidCoreRadius
+                    radius = solidCoreRadius * 1.3f
                 ),
-                radius = solidCoreRadius,
+                radius = solidCoreRadius * 1.3f,
                 center = center
             )
         }
 
-        // Center Action Glyph
-        val icon = if (isSpeaking) {
-            Icons.Default.Stop
-        } else {
-            Icons.Default.Mic
-        }
+        // Center High-Tech JARVIS AI Core Logo
+        val coreSize = size * 0.58f
+        Box(
+            modifier = Modifier
+                .size(coreSize)
+                .clip(CircleShape)
+                .border(2.dp, primaryColor.copy(alpha = 0.85f), CircleShape)
+                .background(JarvisObsidian),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.img_jarvis_logo),
+                contentDescription = "JARVIS Core Reactor Logo",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
 
-        Icon(
-            imageVector = icon,
-            contentDescription = if (isSpeaking) "Stop Speaking" else "Microphone",
-            tint = Color.Black,
-            modifier = Modifier.size(28.dp)
-        )
+            // Dynamic holographic state tint overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                primaryColor.copy(alpha = if (status == AssistantStatus.READY) 0.15f else 0.35f)
+                            )
+                        )
+                    )
+            )
+
+            // Center Interactive Action Glyphs
+            val icon = if (isSpeaking) {
+                Icons.Default.Stop
+            } else {
+                Icons.Default.Mic
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(JarvisObsidian.copy(alpha = 0.82f))
+                    .border(1.5.dp, primaryColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = if (isSpeaking) "Stop Speaking" else "Microphone",
+                    tint = primaryColor,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+        }
     }
 }

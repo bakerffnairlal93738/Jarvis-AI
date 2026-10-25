@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
@@ -71,6 +74,8 @@ fun CustomCommandsSheet(
     var descriptionText by remember { mutableStateOf("") }
     var isAddingNew by remember { mutableStateOf(false) }
 
+    BackHandler { onDismiss() }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -86,20 +91,44 @@ fun CustomCommandsSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "CUSTOM VOICE COMMANDS",
-                        color = JarvisCyan,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Add voice triggers mapped to actions or URLs",
-                        color = JarvisTextSecondary,
-                        fontSize = 12.sp
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(JarvisCyan.copy(alpha = 0.15f))
+                            .border(1.dp, JarvisCyan.copy(alpha = 0.45f), CircleShape)
+                            .testTag("commands_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back / वापस",
+                            tint = JarvisCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column {
+                        Text(
+                            text = "VOICE COMMANDS",
+                            color = JarvisCyan,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Add voice triggers mapped to actions or URLs",
+                            color = JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
                 Button(

@@ -250,13 +250,17 @@ class TermuxPythonManager(private val context: Context) {
             lower.contains("weather") || lower.contains("موسم") -> "Weather Station"
             lower.contains("calculator") || lower.contains("کیلکولیٹر") || lower.contains("حساب") -> "Scientific Calculator"
             lower.contains("chat") || lower.contains("چیٹ") || lower.contains("میسنجر") -> "Live Chat App"
-            lower.contains("store") || lower.contains("shop") || lower.contains("دکان") || lower.contains("ای کامرس") -> "E-Commerce Showcase"
+            lower.contains("store") || lower.contains("shop") || lower.contains("دکان") || lower.contains("ای کامرس") || lower.contains("e-commerce") -> "E-Commerce Showcase"
+            lower.contains("fitness") || lower.contains("gym") || lower.contains("ورزش") || lower.contains("جم") -> "Fitness & Workout Tracker"
+            lower.contains("crypto") || lower.contains("bitcoin") || lower.contains("کرپٹو") || lower.contains("stock") -> "Crypto & Asset Hub"
+            lower.contains("restaurant") || lower.contains("food") || lower.contains("کھانا") || lower.contains("ہوٹل") -> "Gourmet Bistro & Menu"
             lower.contains("dashboard") || lower.contains("ڈیش بورڈ") -> "Analytics Dashboard"
-            else -> "Web Application"
+            else -> "Custom Web Studio"
         }
     }
 
     private fun deriveAppName(prompt: String, type: String): String {
+        val cleanPrompt = prompt.trim()
         return when (type) {
             "Portfolio" -> "JARVIS Neo Portfolio"
             "Task Manager" -> "CyberTasks Pro"
@@ -264,7 +268,11 @@ class TermuxPythonManager(private val context: Context) {
             "Scientific Calculator" -> "Quantum Math Station"
             "Live Chat App" -> "JARVIS Neural Messenger"
             "E-Commerce Showcase" -> "Stark Tech Emporium"
-            else -> "Stark Web System"
+            "Fitness & Workout Tracker" -> "Titan Iron Fitness Core"
+            "Crypto & Asset Hub" -> "Apex Quantum Crypto Terminal"
+            "Gourmet Bistro & Menu" -> "Royal Oasis Cuisine Hub"
+            "Analytics Dashboard" -> "JARVIS Neural Metrics Dashboard"
+            else -> if (cleanPrompt.length in 3..35) cleanPrompt else "Stark Cyber Web Studio"
         }
     }
 
@@ -419,6 +427,101 @@ if __name__ == '__main__':
                     function calcClear() { s.value = '0'; }
                     function calcEqual() { try { s.value = eval(s.value); } catch(e) { s.value = 'Error'; } }
                 </script>
+            """
+            "Fitness & Workout Tracker" -> """
+                <div class="hero">
+                    <div class="avatar-ring">🏋️</div>
+                    <h1>Titan Iron Fitness Core</h1>
+                    <p class="subtitle">AI-Driven Workout Splits, Calorie Telemetry & Rep Counter</p>
+                    <div class="tags">
+                        <span class="tag">Strength & Cardio</span>
+                        <span class="tag">Live Timer Active</span>
+                        <span class="tag">Termux Engine</span>
+                    </div>
+                </div>
+                <div class="grid">
+                    <div class="card">
+                        <h3>🔥 Push Day Protocol</h3>
+                        <p>Chest Press: 4 sets x 10 reps<br>Shoulder Overhead Press: 3 sets x 12 reps<br>Incline DB Flies: 3 sets x 15 reps</p>
+                    </div>
+                    <div class="card">
+                        <h3>⚡ Pull & Back Engine</h3>
+                        <p>Deadlifts: 4 sets x 8 reps<br>Lat Pulldowns: 4 sets x 12 reps<br>Barbell Rows: 3 sets x 10 reps</p>
+                    </div>
+                    <div class="card">
+                        <h3>⏱️ Rest Timer</h3>
+                        <div id="fitTimer" style="font-size: 32px; font-weight:bold; color:#00f0ff; margin:10px 0;">01:30</div>
+                        <button onclick="resetTimer()" style="background:#00f0ff; color:#050b14; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">ری سیٹ ٹائمر</button>
+                    </div>
+                </div>
+                <script>
+                    let t = 90;
+                    function resetTimer() { t = 90; }
+                    setInterval(() => {
+                        if(t > 0) t--;
+                        let m = Math.floor(t / 60);
+                        let sec = t % 60;
+                        document.getElementById('fitTimer').innerText = (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+                    }, 1000);
+                </script>
+            """
+            "Crypto & Asset Hub" -> """
+                <div class="hero">
+                    <div class="avatar-ring">💎</div>
+                    <h1>Apex Quantum Crypto Terminal</h1>
+                    <p class="subtitle">Real-Time Cryptocurrency Exchange & Portfolio Metrics</p>
+                    <div class="tags">
+                        <span class="tag">Web3 Finance</span>
+                        <span class="tag">Live Rates</span>
+                        <span class="tag">Python Server</span>
+                    </div>
+                </div>
+                <div class="grid">
+                    <div class="card">
+                        <h3>🟠 Bitcoin (BTC)</h3>
+                        <div style="font-size:24px; font-weight:bold; color:#00e676;">$67,420.50 <span style="font-size:14px;">(+3.4%)</span></div>
+                        <p style="margin-top:6px; font-size:12px;">Market Cap: $1.32 Trillion</p>
+                    </div>
+                    <div class="card">
+                        <h3>🔷 Ethereum (ETH)</h3>
+                        <div style="font-size:24px; font-weight:bold; color:#00e676;">$3,540.20 <span style="font-size:14px;">(+2.8%)</span></div>
+                        <p style="margin-top:6px; font-size:12px;">Market Cap: $425 Billion</p>
+                    </div>
+                    <div class="card">
+                        <h3>⚡ Solana (SOL)</h3>
+                        <div style="font-size:24px; font-weight:bold; color:#00f0ff;">$154.80 <span style="font-size:14px;">(+5.1%)</span></div>
+                        <p style="margin-top:6px; font-size:12px;">High Throughput Layer-1</p>
+                    </div>
+                </div>
+            """
+            "Gourmet Bistro & Menu" -> """
+                <div class="hero">
+                    <div class="avatar-ring">🍽️</div>
+                    <h1>Royal Oasis Cuisine Hub</h1>
+                    <p class="subtitle">Artisan Dining, Signature Grills & Online Reservation</p>
+                    <div class="tags">
+                        <span class="tag">Mughlai & Continental</span>
+                        <span class="tag">Chef Specials</span>
+                        <span class="tag">Online Orders</span>
+                    </div>
+                </div>
+                <div class="grid">
+                    <div class="card">
+                        <h3>🥩 Royal Mutton Kebab</h3>
+                        <p>Charcoal-smoked spiced tender cutlets infused with saffron aroma.</p>
+                        <div style="color:#00f0ff; font-weight:bold; margin-top:8px;">₨ 1,450</div>
+                    </div>
+                    <div class="card">
+                        <h3>🍗 Smoked Butter Chicken</h3>
+                        <p>Velvety tomato gravy simmered with fresh cream and fenugreek herbs.</p>
+                        <div style="color:#00f0ff; font-weight:bold; margin-top:8px;">₨ 1,280</div>
+                    </div>
+                    <div class="card">
+                        <h3>🍨 Shahi Tukray & Pistachio Gelato</h3>
+                        <p>Crispy golden brioche steeped in cardamom condensed milk with churned gelato.</p>
+                        <div style="color:#00f0ff; font-weight:bold; margin-top:8px;">₨ 650</div>
+                    </div>
+                </div>
             """
             else -> """
                 <div class="hero">

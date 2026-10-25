@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,6 +10,7 @@ import com.example.audio.AudioPlayer
 import com.example.audio.AudioRecorder
 import com.example.audio.SpeechRecognizerHelper
 import com.example.data.JarvisDatabase
+import com.example.data.JarvisPreferencesManager
 import com.example.data.model.CustomCommandEntity
 import com.example.data.model.FeedbackEntity
 import com.example.data.model.NoteEntity
@@ -17,7 +19,10 @@ import com.example.audio.WakeWordDetector
 import com.example.service.ChatMessageItem
 import com.example.service.GeminiLiveService
 import com.example.service.GeminiRestService
+import com.example.service.JarvisActionCallback
+import com.example.service.JarvisBackgroundService
 import com.example.service.JarvisToolManager
+import com.example.service.MissedCallDetector
 import com.example.service.TermuxPythonAppState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -62,15 +67,24 @@ data class JarvisUiState(
     val errorMessage: String? = null,
     val apiKey: String = "",
     val selectedModelPersona: String = "JARVIS", // "JARVIS", "Gemini Live"
+    val selectedAiModel: String = "Gemini 2.5 Flash",
     val isVoiceOutputEnabled: Boolean = true,
+    val speechVolume: Float = 1.0f,
     val speechRate: Float = 1.0f,
     val speechPitch: Float = 1.05f,
+    val isNoiseSuppressionEnabled: Boolean = true,
+    val noiseSuppressionLevel: Float = 0.70f,
+    val isRunInBackgroundEnabled: Boolean = true,
+    val isMissedCallAlertEnabled: Boolean = true,
     val termuxState: TermuxPythonAppState = TermuxPythonAppState(),
     val isTermuxSheetOpen: Boolean = false,
     val isSettingsOpen: Boolean = false,
     val isCommandsOpen: Boolean = false,
     val isNotesOpen: Boolean = false,
     val isFeedbackOpen: Boolean = false,
+    val isVideoHubOpen: Boolean = false,
+    val activeVideoScrollTrigger: Long = 0L,
+    val activeVideoDirection: String = "down",
     val feedbackList: List<FeedbackEntity> = emptyList(),
     val feedbackSubmittedMessage: String? = null
 )
@@ -80,6 +94,8 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     private val database = JarvisDatabase.getInstance(application)
     private val toolManager = JarvisToolManager(application)
     private val restService = GeminiRestService(toolManager)
+
+    private val prefsManager = JarvisPreferencesManager(application)
 
     private val _uiState = MutableStateFlow(JarvisUiState())
     val uiState: StateFlow<JarvisUiState> = _uiState.asStateFlow()
@@ -91,17 +107,97 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     private var wakeWordDetector: WakeWordDetector? = null
 
     init {
-        // Load API key from BuildConfig safely
-        val initialKey = try {
-            BuildConfig.GEMINI_API_KEY
-        } catch (e: Throwable) {
-            ""
+        // Load persistent settings from JarvisPreferencesManager
+        val savedKey = prefsManager.apiKey
+        val savedVoice = prefsManager.selectedVoice
+        val savedVoiceGender = prefsManager.selectedVoiceGender
+        val savedLang = prefsManager.selectedLanguage
+        val savedPersona = prefsManager.selectedModelPersona
+        val savedAiModel = prefsManager.selectedAiModel
+        val savedMode = prefsManager.selectedMode
+        val savedVoiceOutput = prefsManager.isVoiceOutputEnabled
+        val savedVolume = prefsManager.speechVolume
+        val savedRate = prefsManager.speechRate
+        val savedPitch = prefsManager.speechPitch
+        val savedContinuous = prefsManager.isContinuousListening
+        val savedBargeIn = prefsManager.bargeInSensitivity
+        val savedWakeWord = prefsManager.isWakeWordEnabled
+        val savedWakeWordSensitivity = prefsManager.wakeWordSensitivity
+        val savedNoiseSuppression = prefsManager.isNoiseSuppressionEnabled
+        val savedNoiseLevel = prefsManager.noiseSuppressionLevel
+        val savedRunInBackground = prefsManager.isRunInBackgroundEnabled
+        val savedMissedCallAlert = prefsManager.isMissedCallAlertEnabled
+        val savedHistory = prefsManager.getConversationHistory()
+
+        _uiState.update {
+            it.copy(
+                apiKey = savedKey,
+                selectedVoice = savedVoice,
+                selectedVoiceGender = savedVoiceGender,
+                selectedLanguage = savedLang,
+                selectedModelPersona = savedPersona,
+                selectedAiModel = savedAiModel,
+                selectedMode = savedMode,
+                isVoiceOutputEnabled = savedVoiceOutput,
+                speechVolume = savedVolume,
+                speechRate = savedRate,
+                speechPitch = savedPitch,
+                isContinuousListening = savedContinuous,
+                bargeInSensitivity = savedBargeIn,
+                isWakeWordEnabled = savedWakeWord,
+                wakeWordSensitivity = savedWakeWordSensitivity,
+                isNoiseSuppressionEnabled = savedNoiseSuppression,
+                noiseSuppressionLevel = savedNoiseLevel,
+                isRunInBackgroundEnabled = savedRunInBackground,
+                isMissedCallAlertEnabled = savedMissedCallAlert,
+                messages = savedHistory
+            )
         }
-        _uiState.update { it.copy(apiKey = initialKey) }
+
+        if (savedRunInBackground || savedMissedCallAlert) {
+            JarvisBackgroundService.startService(application)
+        }
 
         setupAudioComponents()
+        // Apply saved preferences to components
+        audioPlayer?.setSpeechVolume(savedVolume)
+        audioPlayer?.setSpeechRate(savedRate)
+        audioPlayer?.setSpeechPitch(savedPitch)
+        audioPlayer?.setLanguage(savedLang)
+        audioPlayer?.isVoiceOutputEnabled = savedVoiceOutput
+        audioPlayer?.setVoiceGender(if (savedVoiceGender.equals("FEMALE", ignoreCase = true)) AudioPlayer.VoiceGender.FEMALE else AudioPlayer.VoiceGender.MALE)
+        audioRecorder?.setBargeInSensitivity(savedBargeIn)
+        audioRecorder?.setNoiseSuppression(savedNoiseSuppression, savedNoiseLevel)
+        wakeWordDetector?.sensitivity = savedWakeWordSensitivity
+        wakeWordDetector?.languageCode = savedLang
+
+        // Seed Gemini conversation history
+        for (item in savedHistory) {
+            restService.addHistoryItem(item)
+        }
+
         observeDatabase()
         observeTermuxState()
+
+        toolManager.actionCallback = object : JarvisActionCallback {
+            override fun onScrollVideo(direction: String) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    _uiState.update {
+                        it.copy(
+                            activeVideoScrollTrigger = System.currentTimeMillis(),
+                            activeVideoDirection = direction
+                        )
+                    }
+                }
+            }
+
+            override fun onOpenVideoHub() {
+                viewModelScope.launch(Dispatchers.Main) {
+                    _uiState.update { it.copy(isVideoHubOpen = true) }
+                }
+            }
+        }
+
         if (_uiState.value.isWakeWordEnabled) {
             wakeWordDetector?.startSpotting()
         }
@@ -160,6 +256,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                     val badge = if (text.startsWith("[ACTION]")) text.removePrefix("[ACTION] ").trim() else null
                     currentList.add(ChatMessageItem(role = role, text = text, actionBadge = badge))
                     _uiState.update { it.copy(messages = currentList) }
+                    prefsManager.saveConversationHistory(currentList)
                 }
             },
             onStatusChanged = { connState ->
@@ -353,12 +450,14 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     fun processUserPrompt(prompt: String) {
         if (prompt.isBlank()) return
 
+        val userMessages = _uiState.value.messages + ChatMessageItem(role = "user", text = prompt)
         _uiState.update {
             it.copy(
                 status = AssistantStatus.THINKING,
-                messages = it.messages + ChatMessageItem(role = "user", text = prompt)
+                messages = userMessages
             )
         }
+        prefsManager.saveConversationHistory(userMessages)
 
         viewModelScope.launch {
             val key = _uiState.value.apiKey
@@ -371,13 +470,15 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
             )
 
             if (result.isError) {
+                val errMessages = _uiState.value.messages + ChatMessageItem(role = "model", text = result.replyText)
                 _uiState.update {
                     it.copy(
                         status = AssistantStatus.ERROR,
                         errorMessage = result.replyText,
-                        messages = it.messages + ChatMessageItem(role = "model", text = result.replyText)
+                        messages = errMessages
                     )
                 }
+                prefsManager.saveConversationHistory(errMessages)
             } else {
                 if (result.actionSummary?.contains("Voice Gender:") == true) {
                     val g = if (result.actionSummary.contains("Female")) "FEMALE" else "MALE"
@@ -396,17 +497,27 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 } else if (result.actionSummary?.contains("FEEDBACK", ignoreCase = true) == true) {
                     openFeedback(true)
                 }
+                if (result.actionSummary?.contains("OPEN_VIDEO_HUB", ignoreCase = true) == true ||
+                    result.actionSummary?.contains("VIDEO_HUB_OPENED", ignoreCase = true) == true) {
+                    openVideoHub(true)
+                }
+                if (result.actionSummary?.contains("SCROLL_VIDEO", ignoreCase = true) == true) {
+                    val dir = if (result.actionSummary.contains("UP", ignoreCase = true)) "up" else "down"
+                    _uiState.update { it.copy(activeVideoScrollTrigger = System.currentTimeMillis(), activeVideoDirection = dir) }
+                }
 
+                val finalMessages = _uiState.value.messages + ChatMessageItem(
+                    role = "model",
+                    text = result.replyText,
+                    actionBadge = result.actionSummary
+                )
                 _uiState.update {
                     it.copy(
                         status = AssistantStatus.SPEAKING,
-                        messages = it.messages + ChatMessageItem(
-                            role = "model",
-                            text = result.replyText,
-                            actionBadge = result.actionSummary
-                        )
+                        messages = finalMessages
                     )
                 }
+                prefsManager.saveConversationHistory(finalMessages)
 
                 // VERY IMPORTANT: Speak response out loud through device speakers with live waveform!
                 audioPlayer?.setLanguage(_uiState.value.selectedLanguage)
@@ -417,22 +528,33 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setModelPersona(persona: String) {
         _uiState.update { it.copy(selectedModelPersona = persona) }
+        prefsManager.selectedModelPersona = persona
     }
 
     fun toggleVoiceOutput() {
         val newEnabled = !_uiState.value.isVoiceOutputEnabled
         _uiState.update { it.copy(isVoiceOutputEnabled = newEnabled) }
         audioPlayer?.isVoiceOutputEnabled = newEnabled
+        prefsManager.isVoiceOutputEnabled = newEnabled
+    }
+
+    fun setSpeechVolume(volume: Float) {
+        val clamped = volume.coerceIn(0.05f, 1.0f)
+        _uiState.update { it.copy(speechVolume = clamped) }
+        audioPlayer?.setSpeechVolume(clamped)
+        prefsManager.speechVolume = clamped
     }
 
     fun setSpeechRate(rate: Float) {
         _uiState.update { it.copy(speechRate = rate) }
         audioPlayer?.setSpeechRate(rate)
+        prefsManager.speechRate = rate
     }
 
     fun setSpeechPitch(pitch: Float) {
         _uiState.update { it.copy(speechPitch = pitch) }
         audioPlayer?.setSpeechPitch(pitch)
+        prefsManager.speechPitch = pitch
     }
 
     fun stopSpeaking() {
@@ -453,6 +575,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         audioPlayer?.setLanguage(langCode)
         speechRecognizerHelper?.setLanguage(langCode)
         wakeWordDetector?.languageCode = langCode
+        prefsManager.selectedLanguage = langCode
 
         if (speakConfirmation) {
             val confirm = when (langCode.lowercase()) {
@@ -470,11 +593,13 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     fun setMode(mode: String) {
         stopSession()
         _uiState.update { it.copy(selectedMode = mode) }
+        prefsManager.selectedMode = mode
     }
 
     fun setVoice(voice: String) {
         _uiState.update { it.copy(selectedVoice = voice) }
         liveService?.setVoice(voice)
+        prefsManager.selectedVoice = voice
     }
 
     fun setVoiceGender(gender: String, speakConfirmation: Boolean = true) {
@@ -492,6 +617,10 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
         audioPlayer?.setVoiceGender(if (normalized == "FEMALE") AudioPlayer.VoiceGender.FEMALE else AudioPlayer.VoiceGender.MALE)
         audioPlayer?.setSpeechPitch(targetPitch)
         liveService?.setVoice(targetVoice)
+
+        prefsManager.selectedVoiceGender = normalized
+        prefsManager.selectedVoice = targetVoice
+        prefsManager.speechPitch = targetPitch
 
         if (speakConfirmation) {
             val sampleText = when (_uiState.value.selectedLanguage) {
@@ -519,14 +648,73 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     fun setBargeInSensitivity(sensitivity: Float) {
         _uiState.update { it.copy(bargeInSensitivity = sensitivity) }
         audioRecorder?.setBargeInSensitivity(sensitivity)
+        prefsManager.bargeInSensitivity = sensitivity
     }
 
     fun setContinuousListening(enabled: Boolean) {
         _uiState.update { it.copy(isContinuousListening = enabled) }
+        prefsManager.isContinuousListening = enabled
+    }
+
+    fun toggleNoiseSuppression(enabled: Boolean) {
+        _uiState.update { it.copy(isNoiseSuppressionEnabled = enabled) }
+        audioRecorder?.setNoiseSuppression(enabled, _uiState.value.noiseSuppressionLevel)
+        prefsManager.isNoiseSuppressionEnabled = enabled
+    }
+
+    fun setNoiseSuppressionLevel(level: Float) {
+        val clamped = level.coerceIn(0.1f, 1.0f)
+        _uiState.update { it.copy(noiseSuppressionLevel = clamped) }
+        audioRecorder?.setNoiseSuppression(_uiState.value.isNoiseSuppressionEnabled, clamped)
+        prefsManager.noiseSuppressionLevel = clamped
     }
 
     fun updateApiKey(newKey: String) {
-        _uiState.update { it.copy(apiKey = newKey) }
+        val trimmed = newKey.trim()
+        _uiState.update { it.copy(apiKey = trimmed) }
+        prefsManager.apiKey = trimmed
+    }
+
+    fun setSelectedAiModel(model: String) {
+        _uiState.update { it.copy(selectedAiModel = model) }
+        prefsManager.selectedAiModel = model
+    }
+
+    fun toggleRunInBackground(enabled: Boolean) {
+        _uiState.update { it.copy(isRunInBackgroundEnabled = enabled) }
+        prefsManager.isRunInBackgroundEnabled = enabled
+        if (enabled) {
+            JarvisBackgroundService.startService(getApplication())
+        } else {
+            // Stop service completely, and sync missed call alert state
+            _uiState.update { it.copy(isMissedCallAlertEnabled = false) }
+            prefsManager.isMissedCallAlertEnabled = false
+            JarvisBackgroundService.stopService(getApplication())
+        }
+    }
+
+    fun toggleMissedCallAlert(enabled: Boolean) {
+        _uiState.update { it.copy(isMissedCallAlertEnabled = enabled) }
+        prefsManager.isMissedCallAlertEnabled = enabled
+        if (enabled) {
+            // When turning ON missed call alert, start background service
+            _uiState.update { it.copy(isRunInBackgroundEnabled = true) }
+            prefsManager.isRunInBackgroundEnabled = true
+            JarvisBackgroundService.startService(getApplication())
+        } else {
+            // When user turns OFF missed call alert, completely stop background execution as requested
+            _uiState.update { it.copy(isRunInBackgroundEnabled = false) }
+            prefsManager.isRunInBackgroundEnabled = false
+            JarvisBackgroundService.stopService(getApplication())
+        }
+    }
+
+    fun testMissedCallAlert() {
+        MissedCallDetector.handleMissedCall(getApplication(), "+92 300 1234567")
+    }
+
+    fun requestBatteryOptimization(context: Context) {
+        JarvisBackgroundService.requestBatteryOptimizationExemption(context)
     }
 
     fun replayMessageSpeech(text: String) {
@@ -658,6 +846,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleWakeWord(enabled: Boolean) {
         _uiState.update { it.copy(isWakeWordEnabled = enabled) }
         wakeWordDetector?.isEnabled = enabled
+        prefsManager.isWakeWordEnabled = enabled
         if (enabled) {
             if (_uiState.value.status == AssistantStatus.READY) {
                 wakeWordDetector?.startSpotting()
@@ -670,6 +859,7 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
     fun setWakeWordSensitivity(sensitivity: Float) {
         _uiState.update { it.copy(wakeWordSensitivity = sensitivity) }
         wakeWordDetector?.sensitivity = sensitivity
+        prefsManager.wakeWordSensitivity = sensitivity
     }
 
     private fun handleWakeWordTriggered(wakeWord: String, trailingCommand: String?) {
@@ -700,10 +890,48 @@ class JarvisViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update {
                     it.copy(messages = currentMessages, status = AssistantStatus.SPEAKING)
                 }
+                prefsManager.saveConversationHistory(currentMessages)
                 audioPlayer?.setLanguage(_uiState.value.selectedLanguage)
                 audioPlayer?.speakResponse(greeting, viewModelScope)
             }
         }
+    }
+
+    fun clearConversationHistory() {
+        _uiState.update { it.copy(messages = emptyList()) }
+        prefsManager.clearConversationHistory()
+    }
+
+    fun openVideoHub(open: Boolean) {
+        _uiState.update { it.copy(isVideoHubOpen = open) }
+    }
+
+    fun scrollVideo(direction: String = "down") {
+        viewModelScope.launch {
+            toolManager.executeTool("scroll_video", mapOf("direction" to direction), _uiState.value.selectedLanguage)
+        }
+    }
+
+    fun sendCurrentVideo(title: String, url: String, recipient: String = "") {
+        viewModelScope.launch {
+            toolManager.executeTool(
+                "send_video",
+                mapOf("video_title" to title, "video_url" to url, "recipient" to recipient),
+                _uiState.value.selectedLanguage
+            )
+        }
+    }
+
+    fun callContact(name: String) {
+        processUserPrompt("कॉल लगाओ $name")
+    }
+
+    fun searchInApp(appName: String, query: String) {
+        processUserPrompt("$appName पर $query सर्च करो")
+    }
+
+    fun openAnyApp(appName: String) {
+        processUserPrompt("$appName खोलो")
     }
 
     override fun onCleared() {

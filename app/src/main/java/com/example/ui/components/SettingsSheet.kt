@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PhoneCallback
+import androidx.compose.material.icons.automirrored.filled.PhoneMissed
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
@@ -60,6 +62,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.CircleShape
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -85,8 +90,14 @@ fun SettingsSheet(
     selectedLanguage: String = "auto",
     selectedModelPersona: String,
     isVoiceOutputEnabled: Boolean,
+    speechVolume: Float = 1.0f,
     speechRate: Float,
     speechPitch: Float,
+    isNoiseSuppressionEnabled: Boolean = true,
+    noiseSuppressionLevel: Float = 0.70f,
+    selectedAiModel: String = "Gemini 2.5 Flash",
+    isRunInBackgroundEnabled: Boolean = true,
+    isMissedCallAlertEnabled: Boolean = true,
     isContinuousListening: Boolean,
     bargeInSensitivity: Float,
     isWakeWordEnabled: Boolean,
@@ -96,13 +107,22 @@ fun SettingsSheet(
     onVoiceGenderSelected: (String) -> Unit,
     onLanguageSelected: (String) -> Unit,
     onModelPersonaChanged: (String) -> Unit,
+    onAiModelSelected: (String) -> Unit = {},
+    onRunInBackgroundToggled: (Boolean) -> Unit = {},
+    onMissedCallAlertToggled: (Boolean) -> Unit = {},
+    onTestMissedCall: () -> Unit = {},
+    onRequestBatteryOptimization: () -> Unit = {},
     onVoiceOutputToggled: (Boolean) -> Unit,
+    onSpeechVolumeChanged: (Float) -> Unit = {},
     onSpeechRateChanged: (Float) -> Unit,
     onSpeechPitchChanged: (Float) -> Unit,
+    onNoiseSuppressionToggled: (Boolean) -> Unit = {},
+    onNoiseSuppressionLevelChanged: (Float) -> Unit = {},
     onContinuousListeningToggled: (Boolean) -> Unit,
     onBargeInSensitivityChanged: (Float) -> Unit,
     onWakeWordToggled: (Boolean) -> Unit,
     onWakeWordSensitivityChanged: (Float) -> Unit,
+    onClearConversationHistory: () -> Unit = {},
     onTestVoice: () -> Unit,
     onSubmitFeedback: (rating: Int, category: String, comment: String) -> Unit = { _, _, _ -> },
     onOpenFeedback: () -> Unit = {},
@@ -110,10 +130,14 @@ fun SettingsSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var customKey by remember { mutableStateOf(apiKey) }
+    var currentVolume by remember { mutableFloatStateOf(speechVolume) }
     var currentSensitivity by remember { mutableFloatStateOf(bargeInSensitivity) }
     var currentWakeSensitivity by remember { mutableFloatStateOf(wakeWordSensitivity) }
+    var currentNoiseLevel by remember { mutableFloatStateOf(noiseSuppressionLevel) }
     var currentRate by remember { mutableFloatStateOf(speechRate) }
     var currentPitch by remember { mutableFloatStateOf(speechPitch) }
+    var keySavedMessage by remember { mutableStateOf<String?>(null) }
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     var feedbackRating by remember { mutableIntStateOf(5) }
     var feedbackCategory by remember { mutableStateOf("Voice & Language") }
@@ -123,8 +147,16 @@ fun SettingsSheet(
     var showVoiceGenderDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
 
+    BackHandler {
+        onSaveApiKey(customKey.trim())
+        onDismiss()
+    }
+
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            onSaveApiKey(customKey.trim())
+            onDismiss()
+        },
         sheetState = sheetState,
         containerColor = JarvisDarkNavy
     ) {
@@ -139,20 +171,48 @@ fun SettingsSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "NEURAL CORE & VOICE SETTINGS",
-                        color = JarvisCyan,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Configure neural persona, spoken language, voice gender, and speech engine",
-                        color = JarvisTextSecondary,
-                        fontSize = 11.sp
-                    )
+                // Left side: Back Button + Title
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    IconButton(
+                        onClick = {
+                            onSaveApiKey(customKey.trim())
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(JarvisCyan.copy(alpha = 0.15f))
+                            .border(1.dp, JarvisCyan.copy(alpha = 0.45f), CircleShape)
+                            .testTag("settings_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back / वापस",
+                            tint = JarvisCyan,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column {
+                        Text(
+                            text = "SETTINGS (सेटिंग्स)",
+                            color = JarvisCyan,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Voice engine, background service & missed call alerts",
+                            color = JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -543,6 +603,43 @@ fun SettingsSheet(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // Speech Volume Slider (آواز کی بلندی / वॉल्यूम)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Speech Volume (آواز کی بلندی / वॉल्यूम)",
+                        color = JarvisTextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "${(currentVolume * 100).toInt()}%",
+                        color = JarvisCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                Slider(
+                    value = currentVolume,
+                    onValueChange = {
+                        currentVolume = it
+                        onSpeechVolumeChanged(it)
+                    },
+                    valueRange = 0.10f..1.0f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = JarvisCyan,
+                        activeTrackColor = JarvisCyan,
+                        inactiveTrackColor = JarvisCardBorder
+                    ),
+                    modifier = Modifier.testTag("speech_volume_slider")
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 // Speech Speed Slider
                 Text(
                     text = "Speech Speed (Rate): ${String.format(java.util.Locale.US, "%.1fx", currentRate)}",
@@ -820,6 +917,139 @@ fun SettingsSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // Background Noise Suppression (شور اور نائز منسوخی)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisCardBg)
+                    .border(1.dp, JarvisCyan.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = JarvisCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "BACKGROUND NOISE SUPPRESSION",
+                                color = JarvisCyan,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = "بیک گراؤنڈ شور اور نائز فلٹر (Noise Cancellation)",
+                            color = JarvisTextPrimary,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Switch(
+                        checked = isNoiseSuppressionEnabled,
+                        onCheckedChange = onNoiseSuppressionToggled,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisObsidian,
+                            checkedTrackColor = JarvisCyan
+                        ),
+                        modifier = Modifier.testTag("noise_suppression_switch")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "When enabled, background fan noise, AC hum, room chatter, and static are actively eliminated so the mic only captures your speech.",
+                    color = JarvisTextSecondary,
+                    fontSize = 11.sp
+                )
+
+                if (isNoiseSuppressionEnabled) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Cancellation Strength (شدت / क्षमता):",
+                            color = JarvisTextPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = "${(currentNoiseLevel * 100).toInt()}%",
+                            color = JarvisCyan,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Slider(
+                        value = currentNoiseLevel,
+                        onValueChange = {
+                            currentNoiseLevel = it
+                            onNoiseSuppressionLevelChanged(it)
+                        },
+                        valueRange = 0.20f..1.0f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = JarvisCyan,
+                            activeTrackColor = JarvisCyan,
+                            inactiveTrackColor = JarvisCardBorder
+                        ),
+                        modifier = Modifier.testTag("noise_suppression_slider")
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Mild (30%)", color = JarvisTextDim, fontSize = 10.sp)
+                        Text("Balanced (70%)", color = JarvisCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("Maximum (100%)", color = JarvisTextDim, fontSize = 10.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(JarvisDarkNavy)
+                            .border(1.dp, JarvisCyan.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = JarvisStatusReady,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Hardware DSP & 80Hz High-Pass Noise Gate Active",
+                                color = JarvisStatusReady,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             // 7. Hands-Free Wake-Word Detection
             Column(
                 modifier = Modifier
@@ -975,7 +1205,10 @@ fun SettingsSheet(
 
                 OutlinedTextField(
                     value = customKey,
-                    onValueChange = { customKey = it },
+                    onValueChange = {
+                        customKey = it
+                        onSaveApiKey(it.trim())
+                    },
                     placeholder = { Text("Enter Gemini API key", color = JarvisTextDim) },
                     modifier = Modifier.fillMaxWidth().testTag("api_key_input"),
                     singleLine = true,
@@ -987,17 +1220,356 @@ fun SettingsSheet(
                     )
                 )
 
+                if (!keySavedMessage.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = JarvisStatusReady,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = keySavedMessage ?: "",
+                            color = JarvisStatusReady,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Button(
-                    onClick = { onSaveApiKey(customKey.trim()) },
+                    onClick = {
+                        val trimmed = customKey.trim()
+                        onSaveApiKey(trimmed)
+                        keySavedMessage = "API Key saved permanently! (مستقل طور پر محفوظ ہو گئی)"
+                    },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = JarvisCyan,
                         contentColor = JarvisObsidian
                     ),
                     modifier = Modifier.align(Alignment.End).testTag("save_api_key_button")
                 ) {
-                    Text("SAVE KEY", fontWeight = FontWeight.Bold)
+                    Text("SAVE KEY (مستقل محفوظ کریں)", fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 8.5. Missed Call Voice Alert & Telephony (مسڈ کال الرٹ)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisCardBg)
+                    .border(
+                        1.dp,
+                        if (isMissedCallAlertEnabled) JarvisCyan.copy(alpha = 0.5f) else JarvisCardBorder,
+                        RoundedCornerShape(12.dp)
+                    )
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.PhoneMissed,
+                                contentDescription = null,
+                                tint = if (isMissedCallAlertEnabled) JarvisCyan else JarvisTextDim,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "MISSED CALL ALERT (مسڈ کال الرٹ)",
+                                color = if (isMissedCallAlertEnabled) JarvisCyan else JarvisTextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isMissedCallAlertEnabled) {
+                                "آن: ایپ بیک گراؤنڈ میں رن ہو کر مسڈ کال کا الرٹ آواز میں دے گی۔"
+                            } else {
+                                "بند: ایپ بیک گراؤنڈ میں بالکل رن نہیں ہو رہی۔"
+                            },
+                            color = if (isMissedCallAlertEnabled) JarvisStatusReady else JarvisTextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Alerts caller by voice (Urdu/Hindi/English) & notification. When OFF, background execution completely stops.",
+                            color = JarvisTextSecondary,
+                            fontSize = 10.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Switch(
+                        checked = isMissedCallAlertEnabled,
+                        onCheckedChange = onMissedCallAlertToggled,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisObsidian,
+                            checkedTrackColor = JarvisCyan
+                        ),
+                        modifier = Modifier.testTag("missed_call_alert_switch")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = onTestMissedCall,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = JarvisCyan.copy(alpha = 0.15f),
+                        contentColor = JarvisCyan
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("test_missed_call_button")
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.PhoneCallback,
+                            contentDescription = null,
+                            tint = JarvisCyan,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Test Missed Call Alert (مسڈ کال الرٹ ٹیسٹ کریں)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 9. Background Execution & Battery Optimization Permission (بیک گراؤنڈ میں رن کرنے کی پرمیشن)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisCardBg)
+                    .border(1.dp, JarvisCyan.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = JarvisCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "BACKGROUND SERVICE (بیک گراؤنڈ پرمیشن)",
+                                color = JarvisCyan,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Keep JARVIS, voice spotter, and Termux Python active in the background when app is closed.",
+                            color = JarvisTextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Switch(
+                        checked = isRunInBackgroundEnabled,
+                        onCheckedChange = onRunInBackgroundToggled,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = JarvisObsidian,
+                            checkedTrackColor = JarvisCyan
+                        ),
+                        modifier = Modifier.testTag("background_execution_switch")
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = onRequestBatteryOptimization,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = JarvisPurple.copy(alpha = 0.25f),
+                        contentColor = JarvisPurple
+                    ),
+                    modifier = Modifier.fillMaxWidth().testTag("grant_battery_optimization_button")
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = JarvisPurple,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Grant Background Battery Exemption (بیک گراؤنڈ اجازت دیں)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // 10. AI Model & Architecture Selector (ماڈل کا انتخاب)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisCardBg)
+                    .border(1.dp, JarvisCardBorder, RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = JarvisCyan,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "AI MODEL SELECTOR (ماڈل کا انتخاب)",
+                        color = JarvisCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Select model for app design, Termux code execution, and voice conversation:",
+                    color = JarvisTextSecondary,
+                    fontSize = 11.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                val availableModels = listOf(
+                    "Gemini 2.5 Flash" to "Google AI Studio • Fast, Responsive & Multilingual",
+                    "Gemini Live" to "Google AI Studio • Bidirectional Real-Time Voice Link",
+                    "ChatGPT-6 Persona" to "Agentic Model • Autonomous Reasoning & Vision",
+                    "Claude 3.5 Sonnet" to "Architecture • Deep UI/UX & Code Synthesis",
+                    "Termux Python Local" to "On-Device Engine • Offline Server Scripts"
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableModels.forEach { (modelId, desc) ->
+                        val isSelected = selectedAiModel == modelId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) JarvisCyan.copy(alpha = 0.15f) else JarvisDarkNavy.copy(alpha = 0.6f))
+                                .border(
+                                    1.dp,
+                                    if (isSelected) JarvisCyan else JarvisCardBorder,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable { onAiModelSelected(modelId) }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { onAiModelSelected(modelId) },
+                                colors = RadioButtonDefaults.colors(
+                                    selectedColor = JarvisCyan,
+                                    unselectedColor = JarvisTextDim
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = modelId,
+                                    color = if (isSelected) JarvisCyan else JarvisTextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                                Text(
+                                    text = desc,
+                                    color = JarvisTextSecondary,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Conversation History & Memory Persistence Section
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(JarvisCardBg)
+                    .border(1.dp, JarvisPurple.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = JarvisPurple,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "CONVERSATION MEMORY (محفوظ گفتگو)",
+                        color = JarvisPurple,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "All your queries, voice interactions, and assistant context are automatically preserved in device storage and stay saved across app restarts.",
+                    color = JarvisTextSecondary,
+                    fontSize = 11.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = { showClearHistoryDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFE53935).copy(alpha = 0.2f),
+                        contentColor = Color(0xFFFF5252)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("clear_history_button")
+                ) {
+                    Text("CLEAR CONVERSATION HISTORY (ہسٹری صاف کریں)", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
 
@@ -1500,6 +2072,43 @@ fun SettingsSheet(
                 confirmButton = {
                     TextButton(onClick = { showLanguageDialog = false }) {
                         Text("Done", color = JarvisCyan, fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
+        }
+
+        if (showClearHistoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearHistoryDialog = false },
+                containerColor = JarvisDarkNavy,
+                title = {
+                    Text(
+                        text = "Clear History? (ہسٹری صاف کریں؟)",
+                        color = Color(0xFFFF5252),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Are you sure you want to clear your conversation history? All saved messages will be erased from persistent storage.",
+                        color = JarvisTextSecondary,
+                        fontSize = 13.sp
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onClearConversationHistory()
+                            showClearHistoryDialog = false
+                        }
+                    ) {
+                        Text("Clear All (صاف کریں)", color = Color(0xFFFF5252), fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearHistoryDialog = false }) {
+                        Text("Cancel", color = JarvisTextDim)
                     }
                 }
             )
